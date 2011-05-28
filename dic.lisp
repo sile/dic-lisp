@@ -113,6 +113,62 @@
         (:prefix (prefix-lookup word index entrys limit))
         (:include (subseq@ (include-lookup word index entrys) 0 limit))))))
 
+(defconstant +ESC-CHAR+ (code-char #o33))
+
+
+(defun format-title (title)
+  (format nil "~c[1;31m# ~a~c[0m" +ESC-CHAR+ title +ESC-CHAR+))
+
+;; TODO: 
+(defun fmt-body1 (body)
+  (with-output-to-string (out)
+    (labels ((recur (start open-p)
+               (let ((p (position #\` body :start start)))
+                 (cond ((null p)
+                        (write-string body out :start start))
+                       (open-p
+                        (write-string body out :start start :end p)
+                        (format out "~c[1m" +ESC-CHAR+)
+                        (recur (1+ p) nil))
+                       (t
+                        (write-string body out :start start :end p)
+                        (format out "~c[0m" +ESC-CHAR+)
+                        (recur (1+ p) t))))))
+      (recur 0 body))))
+
+(defun fmt-body2 (body)
+  (with-output-to-string (out)
+    (labels ((recur (start)
+               (let* ((beg (position #\{ body :start start))
+                      (end (position #\} body :start (1+ (or beg 0)))))
+                 (if (or (null beg) (null end))
+                     (write-string body out :start start)
+                   (progn
+                     (write-string body out :start start :end beg)
+                     (format out "~c[1;4;32m" +ESC-CHAR+)
+                     (write-string body out :start (1+ beg) :end end)
+                     (format out "~c[0m" +ESC-CHAR+)
+                     (recur (1+ end)))))))
+      (recur 0))))
+
+(defun fmt-body3 (body)
+  (with-output-to-string (out)
+    (labels ((recur (start)
+               (let* ((beg (position #\[ body :start start))
+                      (end (position #\] body :start (1+ (or beg 0)))))
+                 (if (or (null beg) (null end) )
+                     (write-string body out :start start)
+                   (progn
+                     (write-string body out :start start :end beg)
+                     (format out "~c[1;7;34m" +ESC-CHAR+)
+                     (write-string body out :start (1+ beg) :end end)
+                     (format out "~c[0m" +ESC-CHAR+)
+                     (recur (1+ end)))))))
+      (recur 0))))
+
+(defun format-body (body)
+  (fmt-body1 (fmt-body2 (fmt-body3 body))))
+
 (defun make-command (command-path dic &key (default-limit 1))
   (declare (ignorable command-path))
   #+SBCL
@@ -127,6 +183,8 @@
                                      :type :prefix
                                      :limit limit)))
                  (dolist (e result)
-                   (format t "~&#~a~%~A~2%" (entry-title e) (entry-data e))))))
+                   (format t "~&~a~%~A~%" 
+                           (format-title (entry-title e))
+                           (format-body (entry-data e)))))))
   #-SBCL
   (error "This function only support SBCL"))
