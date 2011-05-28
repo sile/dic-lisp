@@ -16,3 +16,13 @@
                  (recur (cdr front) (cdr rear))))))
     (recur list (cdr list))
     list))
+
+(defmacro a.when (exp &body body)
+  `(let ((it ,exp))
+     (when it 
+       ,@body)))
+
+(defun subseq@ (seq start end)
+  (if (< (length seq) end)
+      seq
+    (subseq seq start end)))
