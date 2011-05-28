@@ -41,30 +41,30 @@
 #+SBCL
 (defmacro main-lambda (args &body body)
   (let ((usage nil))
-    ;; If first expression of body is string type, it treated as command documentation
+    (sb-ext:disable-debugger)
+
     (when (stringp (car body))
       (setf usage (car body)
 	    body  (cdr body)))
     
     `(lambda ()
-       ;; Need to override *invoke-debugger-hook*
-       (let ((sb-ext:*invoke-debugger-hook*
-	      (lambda (condition hook)
-		(declare (ignore hook))
-		(format *error-output* "Error: ~A~%" condition)
-		(sb-ext:quit :unix-status 1))))
-         
-	 ;; When failed arguments destructuring, show documentation and exit
-	 ,(when usage
-	    `(handler-case 
-	      (destructuring-bind ,args (cdr sb-ext:*posix-argv*) 
-	        (declare (ignore ,@(collect-varsym args))))
-	      (error ()
-	        (format *error-output* "~&~?~%~%" 
-			,usage
-			(list (basename (car sb-ext:*posix-argv*))))
-		(sb-ext:quit :unix-status 1))))
-
-         (destructuring-bind ,args (cdr sb-ext:*posix-argv*)
-           ,@body
-	   (sb-ext:quit :unix-status 0))))))
+       ;; When failed arguments destructuring, show documentation and exit
+       ,(when usage
+          `(handler-case 
+            (destructuring-bind ,args (cdr sb-ext:*posix-argv*) 
+              (declare (ignore ,@(collect-varsym args))))
+            (error ()
+              (format *error-output* "~&~?~%~%" 
+                      ,usage
+                      (list (basename (car sb-ext:*posix-argv*))))
+              (sb-ext:quit :unix-status 1))))
+       
+       (destructuring-bind ,args (cdr sb-ext:*posix-argv*)
+         (handler-case
+          (locally ,@body)
+          (sb-int:simple-stream-error ()
+             (sb-ext:quit :unix-status 0 :recklessly-p t))
+          (condition (c)
+             (format *error-output* "~&ERROR: ~A~%" c)
+             (sb-ext:quit :unix-status 1)))
+         (sb-ext:quit :unix-status 0)))))

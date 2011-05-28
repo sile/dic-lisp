@@ -127,6 +127,6 @@
                                      :type :prefix
                                      :limit limit)))
                  (dolist (e result)
-                   (format t "~&#~%~A~2%" (entry-data e))))))
+                   (format t "~&#~a~%~A~2%" (entry-title e) (entry-data e))))))
   #-SBCL
   (error "This function only support SBCL"))
