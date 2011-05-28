@@ -32,21 +32,25 @@
       (delete-file title-list-file))))
   
 (defun parse-dictionary (source &aux entrys)
-  (let (key title data)
+  (let (key summary title data)
     (each-file-line (line source)
       (cond ((string= line *ENTRY_DELIMITER*)
              (push (make-entry :key key
                                :title title
+                               :summary summary
                                :data (apply #'concatenate 'string 
                                             (nreverse data)))
                    entrys)
              (setf key nil
                    title nil
+                   summary nil
                    data nil))
             ((null key)
              (setf key line))
             ((null title)
              (setf title line))
+            ((null summary)
+             (setf summary line))
             (t
              (setf data (nconc (list #.(string #\Newline) line) data)))))
     (coerce (nreverse entrys) 'vector)))
@@ -54,6 +58,7 @@
 (defstruct entry 
   (key "" :type simple-string)
   (title "" :type simple-string)
+  (summary "" :type simple-string)
   (data "" :type simple-string))
 
 (defun make-id->entrys-map (title-idx entrys)
@@ -107,3 +112,21 @@
         (:exact (subseq@ (exact-lookup word index entrys) 0 limit))
         (:prefix (prefix-lookup word index entrys limit))
         (:include (subseq@ (include-lookup word index entrys) 0 limit))))))
+
+(defun make-command (command-path dic &key (default-limit 1))
+  (declare (ignorable command-path))
+  #+SBCL
+  (sb-ext:save-lisp-and-die 
+   command-path 
+   :executable t
+   :toplevel (main-lambda (word &optional (limit default-limit))
+               "~A: word [show-result-limit]"
+               (when (stringp limit)
+                 (setf limit (parse-integer limit)))
+               (let ((result (lookup word dic
+                                     :type :prefix
+                                     :limit limit)))
+                 (dolist (e result)
+                   (format t "~&#~%~A~2%" (entry-data e))))))
+  #-SBCL
+  (error "This function only support SBCL"))
