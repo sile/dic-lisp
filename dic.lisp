@@ -1,33 +1,49 @@
 (in-package :dic)
 
+;;;;;;
+;;; special variables
 (defvar *ENTRY_DELIMITER* "-=+=-=+=-=+=-=+=-=+=-")
 (defvar *tmpdir* #P"/tmp/")
+(defconstant +ESC-CHAR+ (code-char #o33))
 
-(defun default-output (source-path)
-  (merge-pathnames (make-pathname :type "bin") source-path))
+;;;;;;
+;;; structs
+(defstruct entry 
+  (key     "" :type simple-string)
+  (title   "" :type simple-string)
+  (summary "" :type simple-string)
+  (data    "" :type simple-string))
 
+(defstruct dic
+  index
+  entrys)
+
+;;;;;;
+;;; internal functions
+;; build dictionary for on-memory representation
 (defun collect-title (entrys)
   (let ((titles (map 'list #'entry-key entrys)))
     (unique! (sort titles #'string<) #'string=)))
 
-(defun build-title-index (entrys)
-  (let ((titles (collect-title entrys))
-        (title-list-file (merge-pathnames 
+(defun build-title-index (titles)
+  (let ((title-list-file (merge-pathnames  
                           (make-pathname :name (symbol-name (gentemp))
                                          :type "title.list")
                           *tmpdir*))
         (title-index-file (merge-pathnames 
-                          (make-pathname :name (symbol-name (gentemp))
-                                         :type "title.index")
-                          *tmpdir*)))
+                           (make-pathname :name (symbol-name (gentemp))
+                                          :type "title.index")
+                           *tmpdir*)))
+
     (with-open-file (out title-list-file :direction :output)
       (dolist (title titles)
         (write-line title out)))
+
     (unwind-protect
         (progn
           (dawg:build :input title-list-file :output title-index-file)
           (unwind-protect
-              (list (dawg:load title-index-file) (length titles)) ; XXX:
+              (dawg:load title-index-file)
             (delete-file title-index-file)))
       (delete-file title-list-file))))
   
@@ -55,15 +71,9 @@
              (setf data (nconc (list #.(string #\Newline) line) data)))))
     (coerce (nreverse entrys) 'vector)))
 
-(defstruct entry 
-  (key "" :type simple-string)
-  (title "" :type simple-string)
-  (summary "" :type simple-string)
-  (data "" :type simple-string))
-
-(defun make-id->entrys-map (title-idx entrys)
-  (let* ((da (first title-idx))
-         (limit (second title-idx))
+(defun make-id->entrys-map (title-idx title-count entrys)
+  (let* ((da title-idx)
+         (limit title-count)
          (id->entrys (make-array limit :initial-element nil)))
     (loop FOR i FROM (1- (length entrys)) DOWNTO 0
           FOR e = (aref entrys i)
@@ -72,19 +82,8 @@
       (push e (aref id->entrys (dawg:get-id key da))))
     id->entrys))
 
-(defstruct dic
-  index
-  entrys)
 
-;; TODO: load?
-(defun build (source &key (progress t))
-  (declare (ignorable progress))
-  (let* ((entrys (parse-dictionary source))
-         (title-idx (build-title-index entrys))
-         (id->entrys (make-id->entrys-map title-idx entrys)))
-    (make-dic :index (first title-idx)
-              :entrys id->entrys)))
-
+;; word-lookup methods 
 (defun exact-lookup (word da id->ents)
   (a.when (dawg:get-id word da)
     (aref id->ents it)))
@@ -104,22 +103,12 @@
     (declare (ignore len))
     (setf acc (append (aref id->ents id) acc)))
   acc)
-  
-(defun lookup (word dic &key (type :prefix) (limit 3))
-  (let ((word (string-downcase word)))
-    (with-slots (index entrys) dic
-      (ecase type
-        (:exact (subseq@ (exact-lookup word index entrys) 0 limit))
-        (:prefix (prefix-lookup word index entrys limit))
-        (:include (subseq@ (include-lookup word index entrys) 0 limit))))))
-
-(defconstant +ESC-CHAR+ (code-char #o33))
 
 
+;; format word-lookup result
 (defun format-title (title)
   (format nil "~c[1;31m# ~a~c[0m" +ESC-CHAR+ title +ESC-CHAR+))
 
-;; TODO: 
 (defun fmt-body1 (body)
   (with-output-to-string (out)
     (labels ((recur (start open-p)
@@ -169,22 +158,43 @@
 (defun format-body (body)
   (fmt-body1 (fmt-body2 (fmt-body3 body))))
 
-(defun make-command (command-path dic &key (default-limit 1))
+
+;;;;;;
+;;; external functions
+(defun load (source &key (progress t))
+  (declare (ignorable progress))
+  (let* ((entrys (parse-dictionary source))
+         (titles (collect-title entrys))
+         (title-idx (build-title-index titles))
+         (id->entrys (make-id->entrys-map title-idx (length titles) entrys)))
+    (make-dic :index title-idx
+              :entrys id->entrys)))
+
+(defun lookup (word dic &key (type :prefix) (limit 3))
+  (let ((word (string-downcase word)))
+    (with-slots (index entrys) dic
+      (ecase type
+        (:exact (subseq@ (exact-lookup word index entrys) 0 limit))
+        (:prefix (prefix-lookup word index entrys limit))
+        (:include (subseq@ (include-lookup word index entrys) 0 limit))))))
+
+(defun make-command-and-die (source-text-dic command-path &key (default-result-limit 1))
   (declare (ignorable command-path))
   #+SBCL
-  (sb-ext:save-lisp-and-die 
-   command-path 
-   :executable t
-   :toplevel (main-lambda (word &optional (limit default-limit))
-               "~A: word [show-result-limit]"
-               (when (stringp limit)
-                 (setf limit (parse-integer limit)))
-               (let ((result (lookup word dic
-                                     :type :prefix
-                                     :limit limit)))
-                 (dolist (e result)
-                   (format t "~&~a~%~A~%" 
-                           (format-title (entry-title e))
-                           (format-body (entry-data e)))))))
+  (let ((dic (load source-text-dic)))
+    (sb-ext:save-lisp-and-die 
+     command-path 
+     :executable t
+     :toplevel (main-lambda (word &optional (limit default-result-limit))
+                 "~A: word [show-result-limit]"
+                 (when (stringp limit)
+                   (setf limit (parse-integer limit)))
+                 (let ((result (lookup word dic
+                                       :type :prefix
+                                       :limit limit)))
+                   (dolist (e result)
+                     (format t "~&~a~%~A~%" 
+                             (format-title (entry-title e))
+                             (format-body (entry-data e))))))))
   #-SBCL
   (error "This function only support SBCL"))

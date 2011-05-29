@@ -41,13 +41,13 @@
 #+SBCL
 (defmacro main-lambda (args &body body)
   (let ((usage nil))
-    (sb-ext:disable-debugger)
-
     (when (stringp (car body))
       (setf usage (car body)
 	    body  (cdr body)))
     
     `(lambda ()
+       ;;(sb-ext:disable-debugger)
+
        ;; When failed arguments destructuring, show documentation and exit
        ,(when usage
           `(handler-case 

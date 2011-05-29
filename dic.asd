@@ -4,7 +4,6 @@
   :name "dic"
   :author "Takeru Ohta"
   :version "0.0.1"
-  :description "dictionary"
 
   :depends-on (:dawg)
   :serial t
