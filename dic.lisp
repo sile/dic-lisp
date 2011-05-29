@@ -161,8 +161,7 @@
 
 ;;;;;;
 ;;; external functions
-(defun load (source &key (progress t))
-  (declare (ignorable progress))
+(defun load (source)
   (let* ((entrys (parse-dictionary source))
          (titles (collect-title entrys))
          (title-idx (build-title-index titles))

@@ -1,0 +1,88 @@
+[概要]
+・単純な辞書引き用パッケージ
+・機能:
+　・テキスト辞書の読み込み  ※ フォーマットは下記参照
+　・三種類の辞書引き  ※ APIを参照
+　・辞書引きコマンドの作成
+　　※ コマンド作成はSBCLでのみ可能
+
+
+[バージョン]
+・0.0.1
+
+
+[依存パッケージ]
+・cl-dawg-0.1.5
+　・https://github.com/sile/cl-dawg/tree/portable
+
+
+[インストール方法]
+$ sbcl
+> (require :asdf)
+> (require :asdf-install)
+> (asdf-install:install "dic-0.0.1.tar.gz")
+
+
+[テキスト辞書フォーマット]
+# テキスト辞書はエントリ定義の繰り返しからなる
+# 各エントリは以下のフォーマットで定義される
+検索キー: 一行目は検索に使われるキー文字列  ※ 各エントリのキーには重複があっても構わない
+タイトル: 二行目はタイトル
+サマリー: 三行目はエントリの要約 (検索結果一覧に使われる)
+本文: 四行目以降から区切り文字列までは、エントリの本体 (検索結果としてはこれがそのまま表示される)
+エントリ区切り文字列: '-=+=-=+=-=+=-=+=-=+=-'
+
+なお本文は基本的にはプレーンテキストだが、以下の三つの記法は結果表示の際に特別に解釈される。
+- `xxx`: xxxが太字で表示される
+- [xxx]: xxxが太字、背景色が青、文字色が反転、して表示される
+- {xxx}: xxxが太字、文字色が緑、下線付き、で表示される
+※ make-command-and-die関数での検索結果表示の場合
+
+# テキスト辞書例
+egg
+egg
+a round object with ...
+a round object with a hard surface, 
+that contains a baby bird, snake, 
+insect etc and which is produced by 
+a female bird, snake, insect etc
+-=+=-=+=-=+=-=+=-=+=-
+english
+English
+the language used in ...
+the language used in Britain, the US, 
+Australia, and some other countries
+-=+=-=+=-=+=-=+=-=+=-
+
+
+[API]
+# (dic:load source-text-dic) => dic:dic
+　テキスト辞書を読み込む。
+　- source-text-dic: 読み込み対象となるテキスト辞書のパス
+　- dic: dic構造体
+
+# (dic:lookup word dic &key (type :prefix) (limit 3)) => (list dic:entry)
+　読み込んだ辞書から単語検索を行う。
+　- word: 検索ワード
+　- dic: load関数で読み込んだ辞書
+　- type: 検索の種類。以下の三つから選択。
+　　　　　a] exact: wordと検索キーが完全一致するエントリ群を返す
+　　　　　b] prefix: wordを接頭辞に含む検索キーを有するエントリ群を返す
+　　　　　c] include: wordの接頭辞に含まれる検索キーを有するエントリ群を返す
+　- limit: 結果として返されるエントリ数の上限
+　- entry: エントリ用の構造体。key,title,summary,dataのフィールドを有する。
+
+# (dic:make-command-and-die source-text-dic command-path &key (default-result-limit 1))
+　辞書引きコマンドを作成する。 
+　コマンド作成後は自動的にREPLが終了する。
+　※ この関数はSBCLのみで使用可能
+　- source-text-dic: ソースとなるテキスト辞書
+　- command-path: 作成されるコマンドのパス
+　- default-result-limit: コマンドで辞書引きを行った際に、デフォルトで何件まで検索結果を表示するか
+
+
+[コマンド使用方法]
+  $ command word [limit]
+  make-command-and-die関数によって作成されるコマンド
+  - word: 検索ワード。ワードの検索には(dic:lookup word dic :type :prefix)が用いられる
+  - limit: 検索結果の最大表示件数
