@@ -3,9 +3,9 @@
 (defsystem dic
   :name "dic"
   :author "Takeru Ohta"
-  :version "0.0.1"
+  :version "0.0.2"
 
-  :depends-on (:dawg)
+  :depends-on (:dawg :creole)
   :serial t
   :components ((:file "package")
                (:file "util")

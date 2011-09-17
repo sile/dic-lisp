@@ -12,7 +12,7 @@
   (key     "" :type simple-string)
   (title   "" :type simple-string)
   (summary "" :type simple-string)
-  (data    "" :type simple-string))
+  (data    "" :type (simple-array (unsigned-byte 8))))
 
 (defstruct dic
   index
@@ -54,8 +54,8 @@
              (push (make-entry :key key
                                :title title
                                :summary summary
-                               :data (apply #'concatenate 'string 
-                                            (nreverse data)))
+                               :data (creole:string-to-octets
+                                      (apply #'concatenate 'string (nreverse data))))
                    entrys)
              (setf key nil
                    title nil
@@ -194,6 +194,6 @@
                    (dolist (e result)
                      (format t "~&~a~%~A~%" 
                              (format-title (entry-title e))
-                             (format-body (entry-data e))))))))
+                             (format-body (creole:octets-to-string (entry-data e)))))))))
   #-SBCL
   (error "This function only support SBCL"))

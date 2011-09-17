@@ -8,12 +8,15 @@
 
 
 [バージョン]
-・0.0.1
+・0.0.2
 
 
 [依存パッケージ]
 ・cl-dawg-0.1.5
 　・https://github.com/sile/cl-dawg/tree/portable
+
+・creole-0.1.2
+　・http://sourceforge.jp/projects/creole/
 
 
 [インストール方法]
