@@ -62,7 +62,7 @@
                    summary nil
                    data nil))
             ((null key)
-             (setf key line))
+             (setf key (string-downcase line)))
             ((null title)
              (setf title line))
             ((null summary)
